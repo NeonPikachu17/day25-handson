@@ -1,15 +1,14 @@
 package com.ecommerce.product;
 
+import com.ecommerce.AbstractContainerIntegrationTest;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
-public abstract class ProductBaseTest {
+public abstract class ProductBaseTest extends AbstractContainerIntegrationTest {
 
     @Autowired
     private WebApplicationContext context;
