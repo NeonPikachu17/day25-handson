@@ -373,6 +373,7 @@ void updateOrder_AlreadyCancelled_Returns400() throws Exception {
         ])
     }
 }""")
+    add_image_with_caption(doc, "docs/images/stub_should_create_product.png", "Figure: Generated WireMock Stub for POST /api/v1/items (shouldCreateProduct.json)", width_inches=5.8)
 
     doc.add_heading(level=2).add_run("Contract 2: shouldGetProductById.groovy (GET /api/v1/items/1)").font.color.rgb = RGBColor(30, 58, 138)
     add_code_block(doc,
@@ -393,6 +394,7 @@ void updateOrder_AlreadyCancelled_Returns400() throws Exception {
         ])
     }
 }""")
+    add_image_with_caption(doc, "docs/images/stub_should_get_product_by_id.png", "Figure: Generated WireMock Stub for GET /api/v1/items/1 (shouldGetProductById.json)", width_inches=5.8)
 
     doc.add_heading(level=2).add_run("Product Contract Base Class: ProductBaseTest.java").font.color.rgb = RGBColor(30, 58, 138)
     add_code_block(doc,
@@ -449,6 +451,7 @@ Contract.make {
         ])
     }
 }""")
+    add_image_with_caption(doc, "docs/images/stub_should_create_order.png", "Figure: Generated WireMock Stub for POST /api/orders (shouldCreateOrder.json)", width_inches=5.8)
 
     doc.add_heading(level=2).add_run("Contract 4: shouldUpdateOrder.groovy (PUT /api/orders/100)").font.color.rgb = RGBColor(30, 58, 138)
     add_code_block(doc,
@@ -478,6 +481,7 @@ Contract.make {
         ])
     }
 }""")
+    add_image_with_caption(doc, "docs/images/stub_should_update_order.png", "Figure: Generated WireMock Stub for PUT /api/orders/100 (shouldUpdateOrder.json)", width_inches=5.8)
 
     doc.add_heading(level=2).add_run("Order Contract Base Class: OrderBaseClass.java").font.color.rgb = RGBColor(30, 58, 138)
     add_code_block(doc,
@@ -684,16 +688,16 @@ public class OrderFactory {
     r.font.color.rgb = RGBColor(30, 58, 138)
 
     doc.add_paragraph(
-        "A critical vulnerability in enterprise integration testing is test data pollution: dirty state remaining from earlier runs, "
-        "shared mutable records colliding across concurrent threads, and SQL dialect disparities between in-memory mock databases (H2) "
-        "and production relational engines (PostgreSQL). Our Test Data Management strategy eliminates these failure modes using "
-        "containerized test data orchestration with Testcontainers and Docker."
+        "For a more reliable integration testing, test data must be containerized. This is to avoid test data pollution, "
+        "the state remaining from earlier runs, sharing mutable records colliding across concurrent threads, and different SQL dialect "
+        "disparities. The test data management system eliminates these failure modes by doing containerized test data orchestration "
+        "using Testcontainers and Docker."
     )
 
     doc.add_heading(level=2).add_run("Architecture of Containerized Test Data Management").font.color.rgb = RGBColor(30, 58, 138)
     
     # Embed Architecture Image
-    add_image_with_caption(doc, "docs/images/plain_test_data_architecture.jpg", "Figure 1: Test Data Management Architecture with Docker PostgreSQL Container", width_inches=5.8)
+    add_image_with_caption(doc, "docs/images/plain_test_data_architecture.jpg", "Figure: Test Data Management Architecture with Docker & Testcontainers PostgreSQL Container", width_inches=5.8)
 
     doc.add_paragraph(
         "The Test Data Management strategy is built on four core operational pillars:"
@@ -723,8 +727,106 @@ public class OrderFactory {
     p.add_run("Before each test method, TRUNCATE TABLE ... CASCADE restores the database to a pristine zero-pollution baseline. "
               "Upon JVM termination, Testcontainers Ryuk cleanly destroys all containers.")
 
-    # Embed Docker Screenshot
-    add_image_with_caption(doc, "docs/images/docker_database_screenshot.png", "Figure 2: Docker Container Status & Verified PostgreSQL Database Records in PHP", width_inches=5.8)
+    # Task 3 Visual Documentation: Docker Desktop GUI & PSQL Terminal
+    doc.add_heading(level=2).add_run("Visual Documentation: Container Lifecycle & Seed Data Verification").font.color.rgb = RGBColor(30, 58, 138)
+    
+    add_image_with_caption(doc, "docs/images/docker_desktop_containers.png", "Figure: Docker Desktop GUI Dashboard - Active PostgreSQL Test Database Container (Port 5433:5432, postgres:16-alpine)", width_inches=5.8)
+    add_image_with_caption(doc, "docs/images/docker_psql_queries.png", "Figure: Interactive PSQL Terminal Verification in Docker - Verified Products & Orders in PHP Currency and Flyway Schema History", width_inches=5.8)
+
+    # Task 3 Possible Blockers and Challenges Table
+    doc.add_heading(level=2).add_run("Possible Blockers and Challenges When Implementing Task 3").font.color.rgb = RGBColor(30, 58, 138)
+    doc.add_paragraph(
+        "Implementing containerized test data management introduces nuanced complexities across operating system boundaries, "
+        "container lifecycles, and database transactional semantics. The following comprehensive matrix details the critical blockers, "
+        "their underlying root causes, and the architectural mitigations implemented in this project:"
+    )
+
+    t_blockers = doc.add_table(rows=9, cols=4)
+    t_blockers.alignment = WD_TABLE_ALIGNMENT.CENTER
+    blocker_headers = ["#", "Blocker & Challenge", "Root Cause & Architectural Impact", "Mitigation & Resolution Strategy"]
+    for i, h in enumerate(blocker_headers):
+        cell = t_blockers.rows[0].cells[i]
+        set_cell_background(cell, "1E3A8A")
+        p = cell.paragraphs[0]
+        r = p.add_run(h)
+        r.font.bold = True
+        r.font.size = Pt(8.5)
+        r.font.color.rgb = RGBColor(255, 255, 255)
+
+    blocker_data = [
+        ("1",
+         "Windows Named Pipe vs. Unix Socket Disconnect",
+         "On Windows OS, Docker Desktop communicates via named pipe (npipe:////./pipe/dockerDesktopLinuxEngine) rather than standard /var/run/docker.sock. Testcontainers throws DockerClientException: Could not find a valid Docker environment.",
+         "Configured automated Windows named pipe discovery via JNA/Docker-Java in Testcontainers 1.20.1. Exported DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine for local scripts."),
+        ("2",
+         "Docker Engine 28+/29+ Minimum API Version Enforcement",
+         "Modern Docker Desktop releases enforce a minimum Docker API version of 1.40. Legacy Testcontainers defaults to API v1.32, failing with 500 Server Error: client version 1.32 is too old. Minimum supported API version is 1.40.",
+         "Upgraded to Testcontainers 1.20.1 and pinned <api.version>1.44</api.version> in pom.xml, ensuring seamless REST API negotiation with Docker Engine 29.x."),
+        ("3",
+         "Dynamic Host Port Collisions in Concurrent Environments",
+         "Hardcoding static ports (5432 or 5433) throws BindException: Address already in use when local PostgreSQL instances are active or when parallel CI/CD test executors run on shared runners.",
+         "Configured dynamic ephemeral port binding (new PostgreSQLContainer<>()) and injected runtime JDBC URL via @DynamicPropertySource (postgres::getJdbcUrl, e.g. localhost:60187)."),
+        ("4",
+         "Cross-Test Database Pollution & State Leakage (Flaky Tests)",
+         "Reusing a single container across test classes leaves residual database records (e.g., depleted cookie inventory, inserted order rows), causing false negatives depending on test execution order.",
+         "Implemented an automated @BeforeEach hook in AbstractContainerIntegrationTest executing TRUNCATE TABLE orders, products RESTART IDENTITY CASCADE, restoring zero-state baseline in milliseconds."),
+        ("5",
+         "Schema Drift & DDL Conflicts (Hibernate vs. Flyway Migrations)",
+         "Configuring Hibernate hbm2ddl.auto to create or update creates race conditions with Flyway, producing duplicate indexes or letting tests pass against schemas differing from production DDL.",
+         "Enforced Flyway (V1__init_schema.sql) as the single source of truth for DDL (spring.flyway.enabled=true) and locked Hibernate to strict verification (spring.jpa.hibernate.ddl-auto=validate)."),
+        ("6",
+         "Orphaned Containers & Resource Exhaustion (Zombie Containers)",
+         "Aborting test executions midway (e.g. IDE stop button or Ctrl+C in Maven) bypasses standard JVM shutdown hooks, leaving zombie database containers consuming CPU and memory.",
+         "Integrated Testcontainers Ryuk Resource Reaper (testcontainers/ryuk:0.8.1). Ryuk maintains a TCP heartbeat socket and instantly reaps all associated test containers if the JVM dies abruptly."),
+        ("7",
+         "Container Cold-Start Overhead & Feedback Loop Latency",
+         "Spinning up a fresh PostgreSQL container per test class adds 10–25s startup delay per test suite, severely degrading developer productivity and continuous integration cycle times.",
+         "Adopted the Shared Singleton Container Pattern via a static {} initializer in AbstractContainerIntegrationTest. The container starts once (~1.039s with local image caching) and is reused across all suites."),
+        ("8",
+         "Currency Decimal Precision & Timezone Inconsistencies",
+         "Using floating-point types (double/float) for Philippine Peso (PHP) calculations introduces binary rounding errors (e.g. 49.980000000000004). Non-UTC timezone offsets break timestamp assertions.",
+         "Enforced java.math.BigDecimal throughout domain entities, mapped to PostgreSQL NUMERIC(10, 2). Standardized all order timestamps to UTC Instant and ISO-8601 formatting.")
+    ]
+
+    for idx, (cid, ctitle, cimpact, cmitigation) in enumerate(blocker_data):
+        row = t_blockers.rows[idx + 1]
+        c0, c1, c2, c3 = row.cells[0], row.cells[1], row.cells[2], row.cells[3]
+        c0.width = Inches(0.4)
+        c1.width = Inches(1.8)
+        c2.width = Inches(2.1)
+        c3.width = Inches(2.2)
+        bg = "F8FAFC" if idx % 2 == 0 else "FFFFFF"
+        set_cell_background(c0, bg)
+        set_cell_background(c1, bg)
+        set_cell_background(c2, bg)
+        set_cell_background(c3, bg)
+        set_cell_margins(c0, 40, 40, 50, 50)
+        set_cell_margins(c1, 40, 40, 50, 50)
+        set_cell_margins(c2, 40, 40, 50, 50)
+        set_cell_margins(c3, 40, 40, 50, 50)
+
+        p0 = c0.paragraphs[0]
+        r0 = p0.add_run(cid)
+        r0.font.bold = True
+        r0.font.size = Pt(8.0)
+        r0.font.color.rgb = RGBColor(30, 58, 138)
+
+        p1 = c1.paragraphs[0]
+        r1 = p1.add_run(ctitle)
+        r1.font.bold = True
+        r1.font.size = Pt(8.0)
+
+        p2 = c2.paragraphs[0]
+        r2 = p2.add_run(cimpact)
+        r2.font.size = Pt(8.0)
+        r2.font.color.rgb = RGBColor(51, 65, 85)
+
+        p3 = c3.paragraphs[0]
+        r3 = p3.add_run(cmitigation)
+        r3.font.size = Pt(8.0)
+        r3.font.color.rgb = RGBColor(51, 65, 85)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(8)
 
     # Flyway Migration Script
     doc.add_heading(level=2).add_run("Flyway Migration: src/main/resources/db/migration/V1__init_schema.sql").font.color.rgb = RGBColor(30, 58, 138)
@@ -790,7 +892,7 @@ void testPlaceOrderAgainstDockerContainerDatabase() throws Exception {
     )
 
     # Embed Test Results Terminal Screenshot
-    add_image_with_caption(doc, "docs/images/test_results_terminal.png", "Figure 3: Terminal Screenshot of Maven Test Execution - 21 Tests Passed (BUILD SUCCESS)", width_inches=5.8)
+    add_image_with_caption(doc, "docs/images/maven_test_success_real.png", "Figure: Native Terminal Screenshot of Maven Test Execution - 21 Tests Passed (BUILD SUCCESS in 27.668s)", width_inches=5.8)
 
     doc.add_heading(level=2).add_run("Detailed Terminal Execution Output (mvn clean test)").font.color.rgb = RGBColor(30, 58, 138)
     add_code_block(doc,

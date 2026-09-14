@@ -188,6 +188,9 @@ org.springframework.cloud.contract.spec.Contract.make {
 }
 ```
 
+![shouldCreateProduct Stub](docs/images/stub_should_create_product.png)
+*Figure: Generated WireMock Stub for POST /api/v1/items (shouldCreateProduct.json)*
+
 ### Contract 2: `shouldGetProductById.groovy` (`GET /api/v1/items/1`)
 ```groovy
 org.springframework.cloud.contract.spec.Contract.make {
@@ -210,6 +213,9 @@ org.springframework.cloud.contract.spec.Contract.make {
     }
 }
 ```
+
+![shouldGetProductById Stub](docs/images/stub_should_get_product_by_id.png)
+*Figure: Generated WireMock Stub for GET /api/v1/items/1 (shouldGetProductById.json)*
 
 ### Contract Provider Base Class: `ProductBaseTest.java`
 ```java
@@ -278,6 +284,9 @@ Contract.make {
 }
 ```
 
+![shouldCreateOrder Stub](docs/images/stub_should_create_order.png)
+*Figure: Generated WireMock Stub for POST /api/orders (shouldCreateOrder.json)*
+
 ### Contract 4: `shouldUpdateOrder.groovy` (`PUT /api/orders/100`)
 ```groovy
 package contracts.order
@@ -314,6 +323,9 @@ Contract.make {
     }
 }
 ```
+
+![shouldUpdateOrder Stub](docs/images/stub_should_update_order.png)
+*Figure: Generated WireMock Stub for PUT /api/orders/100 (shouldUpdateOrder.json)*
 
 ### Order Contract Base Class: `OrderBaseClass.java`
 ```java
@@ -459,23 +471,43 @@ public class OrderFactory {
 
 ## 5. Task 3: Test Data Management Strategy
 
+For a more reliable integration testing, test data must be containerized. This is to avoid test data pollution, the state remaining from earlier runs, sharing mutable records colliding across concurrent threads, and different SQL dialect disparities. The test data management system eliminates these failure modes by doing containerized test data orchestration using Testcontainers and Docker.
+
 ### Architecture
 
 ![Test Data Management Architecture](docs/images/plain_test_data_architecture.jpg)
-*Figure 1: Test Data Management Architecture with Docker & Testcontainers PostgreSQL Container*
+*Figure: Test Data Management Architecture with Docker & Testcontainers PostgreSQL Container*
 
 ### Key Pillars of the Strategy
-1. **Dynamic Port Binding & Process Isolation**: PostgreSQL container is dynamically assigned an ephemeral host port (e.g., `60187`), completely eliminating conflicts with local databases.
+1. **Dynamic Port Binding & Process Isolation**: PostgreSQL container is dynamically assigned an ephemeral host port (e.g., `60187`), completely eliminating conflicts with local databases or parallel CI pipelines.
 2. **Domain-Specific Seed Data**: Pre-seeded with authentic bakery items priced in **Philippine Pesos (PHP)** (`Chocolate Chip Cookie Box` PHP 250.00, `Ube Cheese Pandesal` PHP 180.00, `Matcha Cream Croissant` PHP 140.00).
 3. **Versioned Flyway Migrations**: Tables are defined through [`V1__init_schema.sql`](src/main/resources/db/migration/V1__init_schema.sql) and validated by Hibernate schema validation (`ddl-auto: validate`).
 4. **Zero-Pollution Lifecycle**:
    - `TRUNCATE TABLE ... CASCADE` before every test execution.
    - Clean shutdown via Testcontainers Ryuk or `docker compose down -v` for local compose setups.
 
-### Docker / Testcontainers Verification Screenshot
+### Visual Documentation: Container Lifecycle & Seed Data Verification
 
-![Docker Database Screenshot](docs/images/docker_database_screenshot.png)
-*Figure 2: Docker / Testcontainers Status & Verified PostgreSQL Database Records in PHP*
+![Docker Desktop Containers](docs/images/docker_desktop_containers.png)
+*Figure: Docker Desktop GUI Dashboard - Active PostgreSQL Test Database Container (Port 5433:5432, postgres:16-alpine)*
+
+![Docker PSQL Queries](docs/images/docker_psql_queries.png)
+*Figure: Interactive PSQL Terminal Verification in Docker - Verified Products & Orders in PHP Currency and Flyway Schema History*
+
+### Possible Blockers and Challenges When Implementing Task 3
+
+Implementing containerized test data management introduces nuanced complexities across operating system boundaries, container lifecycles, and database transactional semantics. The following comprehensive matrix details the critical blockers, their underlying root causes, and the architectural mitigations implemented in this project:
+
+| # | Blocker & Challenge | Root Cause & Architectural Impact | Mitigation & Resolution Strategy |
+|---|---|---|---|
+| **1** | **Windows Named Pipe vs. Unix Socket Disconnect** | On Windows OS, Docker Desktop communicates via named pipe (`npipe:////./pipe/dockerDesktopLinuxEngine`) rather than standard `/var/run/docker.sock`. Testcontainers throws `DockerClientException: Could not find a valid Docker environment`. | Configured automated Windows named pipe discovery via JNA/Docker-Java in Testcontainers 1.20.1. Exported `DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine` for local scripts. |
+| **2** | **Docker Engine 28+/29+ Minimum API Version Enforcement** | Modern Docker Desktop releases enforce a minimum Docker API version of 1.40. Legacy Testcontainers defaults to API v1.32, failing with `500 Server Error: client version 1.32 is too old. Minimum supported API version is 1.40`. | Upgraded to Testcontainers 1.20.1 and pinned `<api.version>1.44</api.version>` in `pom.xml`, ensuring seamless REST API negotiation with Docker Engine 29.x. |
+| **3** | **Dynamic Host Port Collisions in Concurrent Environments** | Hardcoding static ports (5432 or 5433) throws `BindException: Address already in use` when local PostgreSQL instances are active or when parallel CI/CD test executors run on shared runners. | Configured dynamic ephemeral port binding (`new PostgreSQLContainer<>()`) and injected runtime JDBC URL via `@DynamicPropertySource` (`postgres::getJdbcUrl`, e.g. `localhost:60187`). |
+| **4** | **Cross-Test Database Pollution & State Leakage (Flaky Tests)** | Reusing a single container across test classes leaves residual database records (e.g., depleted cookie inventory, inserted order rows), causing false negatives depending on test execution order. | Implemented an automated `@BeforeEach` hook in `AbstractContainerIntegrationTest` executing `TRUNCATE TABLE orders, products RESTART IDENTITY CASCADE`, restoring zero-state baseline in milliseconds. |
+| **5** | **Schema Drift & DDL Conflicts (Hibernate vs. Flyway Migrations)** | Configuring Hibernate `hbm2ddl.auto` to `create` or `update` creates race conditions with Flyway, producing duplicate indexes or letting tests pass against schemas differing from production DDL. | Enforced Flyway (`V1__init_schema.sql`) as the single source of truth for DDL (`spring.flyway.enabled=true`) and locked Hibernate to strict verification (`spring.jpa.hibernate.ddl-auto=validate`). |
+| **6** | **Orphaned Containers & Resource Exhaustion (Zombie Containers)** | Aborting test executions midway (e.g. IDE stop button or `Ctrl+C` in Maven) bypasses standard JVM shutdown hooks, leaving zombie database containers consuming CPU and memory. | Integrated Testcontainers Ryuk Resource Reaper (`testcontainers/ryuk:0.8.1`). Ryuk maintains a TCP heartbeat socket and instantly reaps all associated test containers if the JVM dies abruptly. |
+| **7** | **Container Cold-Start Overhead & Feedback Loop Latency** | Spinning up a fresh PostgreSQL container per test class adds 10–25s startup delay per test suite, severely degrading developer productivity and continuous integration cycle times. | Adopted the **Shared Singleton Container Pattern** via a `static {}` initializer in `AbstractContainerIntegrationTest`. The container starts once (~1.039s with local image caching) and is reused across all suites. |
+| **8** | **Currency Decimal Precision & Timezone Inconsistencies** | Using floating-point types (`double`/`float`) for Philippine Peso (PHP) calculations introduces binary rounding errors (e.g. `49.980000000000004`). Non-UTC timezone offsets break timestamp assertions. | Enforced `java.math.BigDecimal` throughout domain entities, mapped to PostgreSQL `NUMERIC(10, 2)`. Standardized all order timestamps to UTC `Instant` and ISO-8601 formatting. |
 
 ### Flyway Schema Migration Script (`src/main/resources/db/migration/V1__init_schema.sql`)
 ```sql
@@ -504,8 +536,8 @@ CREATE TABLE IF NOT EXISTS orders (
 
 ### Verified Maven Test Run Screenshot (`mvn clean test`)
 
-![Maven Test Results](docs/images/test_results_terminal.png)
-*Figure 3: Terminal Screenshot of Maven Test Execution - All 21 Tests Passed (BUILD SUCCESS)*
+![Maven Test Results](docs/images/maven_test_success_real.png)
+*Figure: Native Terminal Screenshot of Maven Test Execution - All 21 Tests Passed (BUILD SUCCESS in 27.668s)*
 
 ### Terminal Execution Output (`mvn clean test`)
 
