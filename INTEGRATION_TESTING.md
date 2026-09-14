@@ -103,7 +103,7 @@ stateDiagram-v2
 ### Scenario 1: Create a New Product (4 Cases)
 
 #### 1. Happy Path: Successful Creation & Database Persistence
-* **Endpoint**: `POST /api/products`
+* **Endpoint**: `POST /api/v1/items`
 * **Payload**:
   ```json
   {
@@ -116,17 +116,17 @@ stateDiagram-v2
 * **Assertion**: Verifies HTTP 201, inspects response JSON for assigned ID, and performs direct repository query `productRepository.findById(createdId)` ensuring accurate database storage.
 
 #### 2. Negative Path: Blank Product Name
-* **Endpoint**: `POST /api/products`
+* **Endpoint**: `POST /api/v1/items`
 * **Payload**: `{ "name": "", "price": 49.99, "stock": 10 }`
 * **Assertion**: Validates `GlobalExceptionHandler` returns HTTP 400 with structured validation payload `{ "error": "Validation Failed", "errors": { "name": "Product name cannot be blank" } }`. Verifies no record added to database.
 
 #### 3. Negative Path: Negative Price & Stock Values
-* **Endpoint**: `POST /api/products`
+* **Endpoint**: `POST /api/v1/items`
 * **Payload**: `{ "name": "Faulty Gadget", "price": -25.50, "stock": -10 }`
 * **Assertion**: Verifies bean validation constraints (`@Positive` on price, `@PositiveOrZero` on stock) reject bad values before reaching persistence.
 
 #### 4. Read-After-Create Verification
-* **Endpoints**: `POST /api/products` ➔ `GET /api/products/{id}`
+* **Endpoints**: `POST /api/v1/items` ➔ `GET /api/v1/items/{id}`
 * **Assertion**: Asserts read consistency across HTTP verbs (POST generates ID, GET retrieves the exact persisted record).
 
 ---
