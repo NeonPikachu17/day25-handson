@@ -1,18 +1,18 @@
 # 🛒 E-Commerce Backend Service & Integration Test Suite
 
-A containerized e-commerce backend built with **Java 21** and **Spring Boot 3.3.5**, featuring clean domain-driven architecture for **Product** and **Order** management, robust validation, inventory tracking, and an extensive **JUnit 5** integration test suite with both happy and negative test paths.
+A clean, production-grade e-commerce backend built with **Java 21** and **Spring Boot 3.3.5**, featuring domain-driven architecture for **Product** and **Order** management, robust validation, inventory tracking, and a **JUnit 5** integration test suite with containerized **Test Data Management** using Docker.
 
 ---
 
 ## 📋 Features
 
-- **Product Service**: Create and retrieve products, track real-time stock levels, and safely handle inventory deductions and cancellations.
+- **Product Service**: Create and retrieve products, track real-time stock levels, and handle inventory deductions/restorations.
 - **Order Service**: Place orders against available product inventory, automatically calculate totals, and update order status/shipping address.
 - **Inventory Consistency**: Atomic inventory decrement upon placing orders and automated inventory restoration if an order is cancelled.
 - **Terminal State Protection**: Negative business constraints preventing modification of orders that have already reached terminal states (`CANCELLED` or `SHIPPED`).
 - **Structured Error Handling**: Centralized `@RestControllerAdvice` emitting standardized JSON responses for validation errors (400), business constraint violations (400), and missing resources (404).
-- **Integration Test Suite**: 8 end-to-end tests verifying HTTP contracts and database states using JUnit 5 and `MockMvc`.
-- **Dockerized Multi-Stage Build**: Production-ready, non-root Alpine container with healthchecks and JVM container optimization.
+- **Test Data Management in Docker (Task 3)**: Isolated PostgreSQL test database running in Docker with pre-seeded baseline test datasets (`docker/init-test-data.sql`) ensuring deterministic, repeatable test runs without polluting production data.
+- **Zero-Dependency Quickstart**: Maven Wrapper (`./mvnw` / `mvnw.cmd`) included so anyone can build and run immediately.
 
 ---
 
@@ -23,99 +23,85 @@ A containerized e-commerce backend built with **Java 21** and **Spring Boot 3.3.
 | **Language** | Java 21 LTS |
 | **Framework** | Spring Boot 3.3.5 |
 | **Persistence** | Spring Data JPA & Hibernate 6.5 |
-| **Database** | H2 In-Memory Database |
+| **Databases** | H2 In-Memory & PostgreSQL 16 (in Docker) |
 | **Validation** | Jakarta Bean Validation |
 | **Testing** | JUnit 5, MockMvc, AssertJ, Spring Test |
-| **Containerization** | Docker (Multi-stage build), Docker Compose |
+| **Test Data Management** | Docker & Docker Compose (`postgres:16-alpine`) |
 
 ---
 
-## 🚀 Quick Start with Docker
+## 🐳 Task 3: Test Data Management with Docker
 
-### Option 1: Docker Compose (Recommended)
+The application itself runs natively on Java, while the **test data environment is managed in Docker** to provide clean, isolated, reproducible test datasets.
 
-Run the entire application with a single command:
+### 1. Start the Docker Test Database
+Launch the isolated PostgreSQL test database with pre-seeded test data:
 
 ```bash
-docker compose up --build
+docker compose up -d
 ```
 
-To run in the background (detached mode):
+This starts `ecommerce-test-db` on port `5433` and executes [`docker/init-test-data.sql`](file:///docker/init-test-data.sql), creating:
+- Predictable baseline test products (e.g., `Test Gaming Laptop`, `Test Wireless Mouse`, `Test Low Stock Gadget`).
+- Pre-seeded test orders for state mutation and boundary testing.
+
+### 2. Reset / Wipe Test Data
+To reset test data back to a clean state:
 ```bash
-docker compose up --build -d
+docker compose down -v && docker compose up -d
 ```
 
-To stop:
+### 3. Stop the Test Database
 ```bash
 docker compose down
 ```
 
-### Option 2: Standalone Docker
-
-1. **Build the image**:
-   ```bash
-   docker build -t ecommerce-service:latest .
-   ```
-
-2. **Run the container**:
-   ```bash
-   docker run -d -p 8080:8080 --name ecommerce-backend ecommerce-service:latest
-   ```
-
-3. **Check container logs**:
-   ```bash
-   docker logs -f ecommerce-backend
-   ```
-
-4. **Stop the container**:
-   ```bash
-   docker stop ecommerce-backend && docker rm ecommerce-backend
-   ```
-
-The application will be accessible at: `http://localhost:8080`
-
 ---
 
-## 💻 Running Locally without Docker
+## 💻 Running the Application Locally
 
 ### Prerequisites
 - Java 21 JDK
-- Maven 3.9+ (or use the included `./mvnw` wrapper)
+- Docker (for the test database environment)
 
-### Build & Run
+### Run Application
 ```bash
-# Using Maven wrapper (Linux/macOS)
-./mvnw spring-boot:run
-
-# Using Maven wrapper (Windows PowerShell)
+# Windows
 .\mvnw.cmd spring-boot:run
 
-# Or using installed Maven
+# Linux / macOS
+./mvnw spring-boot:run
+
+# Or with installed Maven
 mvn spring-boot:run
 ```
+
+The application starts on `http://localhost:8080`.
 
 ---
 
 ## 🧪 Running Integration Tests
 
-Execute the full integration test suite (8 tests covering both happy and negative paths):
+Execute the full suite of **10 integration tests** (8 core domain tests + 2 Docker test data integration tests):
 
 ```bash
 mvn clean test
 ```
 
-### Test Suite Breakdown
+### Test Suite Summary
 
-| # | Test Case | Scenario | Path | Description |
+| # | Test Class | Scenario | Path | Description |
 |---|---|---|---|---|
-| 1 | `createProduct_ValidPayload_Returns201AndPersistsInDb` | Create Product | Happy | Asserts HTTP 201 and verifies DB persistence. |
-| 2 | `createProduct_InvalidPayload_BlankName_Returns400` | Create Product | Negative | Rejects blank product name with HTTP 400. |
-| 3 | `placeOrder_ValidProductAndStock_Returns201AndDeductsInventory` | Place Order | Happy | Asserts HTTP 201 and verifies product stock was deducted. |
-| 4 | `placeOrder_InsufficientStock_Returns400AndDoesNotCreateOrder` | Place Order | Negative | Rejects order exceeding available inventory with HTTP 400. |
-| 5 | `updateOrder_ValidAddressAndStatus_Returns200AndUpdatesState` | Update Order | Happy | Updates shipping address and transitions status to `SHIPPED`. |
-| 6 | `updateOrder_NonExistentOrder_Returns404` | Update Order | Negative | Rejects updating an unknown order ID with HTTP 404. |
-| 7 | `updateOrder_AlreadyCancelled_Returns400` | Update Order | Negative | Rejects modifying an order already in `CANCELLED` status. |
-| 8 | `updateOrder_CancelOrder_RestoresProductStock` | Update Order | State Transition | Cancelling an order automatically returns stock to the product. |
+| 1 | `ECommerceIntegrationTest` | Create Product | Happy | Verifies HTTP 201 and database persistence. |
+| 2 | `ECommerceIntegrationTest` | Create Product | Negative | Rejects blank product name with HTTP 400. |
+| 3 | `ECommerceIntegrationTest` | Place Order | Happy | Verifies HTTP 201 and inventory deduction (10 → 7). |
+| 4 | `ECommerceIntegrationTest` | Place Order | Negative | Rejects order exceeding stock with HTTP 400. |
+| 5 | `ECommerceIntegrationTest` | Update Order | Happy | Updates shipping address and transitions status to `SHIPPED`. |
+| 6 | `ECommerceIntegrationTest` | Update Order | Negative | Rejects updating non-existent order ID with HTTP 404. |
+| 7 | `ECommerceIntegrationTest` | Update Order | Negative | Rejects modifying order in terminal `CANCELLED` status. |
+| 8 | `ECommerceIntegrationTest` | Update Order | State Transition | Cancelling an order automatically restores inventory. |
+| 9 | `DockerTestDataIntegrationTest` | Test Data Management | Verification | Verifies pre-seeded test data exists in Docker PostgreSQL. |
+| 10 | `DockerTestDataIntegrationTest` | Test Data Management | Container Integration | Executes order placement and persistence directly against Docker test DB. |
 
 ---
 
@@ -133,25 +119,10 @@ curl -X POST http://localhost:8080/api/products \
   }'
 ```
 
-**Response (`201 Created`):**
-```json
-{
-  "id": 1,
-  "name": "Wireless Noise Cancelling Headphones",
-  "description": "High-fidelity Bluetooth over-ear headphones",
-  "price": 199.99,
-  "stock": 50
-}
-```
-
----
-
 ### 2. Retrieve All Products
 ```bash
 curl -X GET http://localhost:8080/api/products
 ```
-
----
 
 ### 3. Place a New Order
 ```bash
@@ -164,21 +135,6 @@ curl -X POST http://localhost:8080/api/orders \
   }'
 ```
 
-**Response (`201 Created`):**
-```json
-{
-  "id": 1,
-  "productId": 1,
-  "quantity": 2,
-  "totalAmount": 399.98,
-  "shippingAddress": "742 Evergreen Terrace, Springfield",
-  "status": "CONFIRMED",
-  "createdAt": "2026-09-14T04:20:00Z"
-}
-```
-
----
-
 ### 4. Update an Order
 ```bash
 curl -X PUT http://localhost:8080/api/orders/1 \
@@ -188,8 +144,6 @@ curl -X PUT http://localhost:8080/api/orders/1 \
     "status": "SHIPPED"
   }'
 ```
-
----
 
 ### 5. Cancel an Order (Restores Stock)
 ```bash
@@ -206,10 +160,11 @@ curl -X PUT http://localhost:8080/api/orders/1 \
 
 ```
 day-25/
-├── Dockerfile                  # Multi-stage production container build
-├── docker-compose.yml          # Container orchestration configuration
-├── pom.xml                     # Maven dependencies & build setup
-├── README.md                   # Project documentation
+├── docker/
+│   └── init-test-data.sql          # Test data initialization & baseline seed script
+├── docker-compose.yml              # Docker container for isolated PostgreSQL test database
+├── pom.xml                         # Maven dependencies & build setup
+├── README.md                       # Project documentation
 └── src/
     ├── main/
     │   ├── java/com/ecommerce/
@@ -237,10 +192,12 @@ day-25/
     │   │           ├── UpdateOrderRequest.java
     │   │           └── OrderResponse.java
     │   └── resources/
-    │       └── application.yml
+    │       ├── application.yml
+    │       └── application-docker.yml
     └── test/
         ├── java/com/ecommerce/
-        │   └── ECommerceIntegrationTest.java
+        │   ├── ECommerceIntegrationTest.java
+        │   └── DockerTestDataIntegrationTest.java
         └── resources/
             └── application-test.yml
 ```
