@@ -14,7 +14,7 @@ A comprehensive technical documentation report for the E-Commerce backend servic
 | **Domain Model** | Bakery & Confectionery (Cookies, Pastries, and Croissants with prices in Philippine Pesos - **PHP**) |
 | **Acceptance Criteria** | **5 of 5 Fulfilled** (Testcontainers, Dynamic Ports, Flyway, Entity Factories, Truncation Hook) |
 | **Repository** | [https://github.com/NeonPikachu17/day25-handson.git](https://github.com/NeonPikachu17/day25-handson.git) (Branch: `main`) |
-| **Total Test Execution** | **19 Tests Executed \| 19 Passed \| 0 Failures \| 0 Errors (`BUILD SUCCESS` in 15.605s)** |
+| **Total Test Execution** | **21 Tests Executed \| 21 Passed \| 0 Failures \| 0 Errors (`BUILD SUCCESS` in 18.682s)** |
 
 ---
 
@@ -207,7 +207,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.web.context.WebApplicationContext;
 import java.math.BigDecimal;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 public abstract class ProductBaseTest extends AbstractContainerIntegrationTest {
 
     @Autowired
@@ -221,6 +220,123 @@ public abstract class ProductBaseTest extends AbstractContainerIntegrationTest {
         RestAssuredMockMvc.webAppContextSetup(context);
         productRepository.deleteAll();
         productRepository.save(new Product("Sample Product", "A test product description", new BigDecimal("99.99"), 10));
+    }
+}
+```
+
+### Contract 3: `shouldCreateOrder.groovy` (`POST /api/orders`)
+```groovy
+package contracts.order
+
+import org.springframework.cloud.contract.spec.Contract
+
+Contract.make {
+    description "Should place a new order successfully"
+    request {
+        method POST()
+        url '/api/orders'
+        headers {
+            contentType(applicationJson())
+        }
+        body([
+            productId: 1,
+            quantity: 2,
+            shippingAddress: "123 Main Street"
+        ])
+    }
+    response {
+        status CREATED()
+        headers {
+            contentType(applicationJson())
+        }
+        body([
+            id: 100,
+            productId: 1,
+            quantity: 2,
+            totalAmount: 49.98,
+            shippingAddress: "123 Main Street",
+            status: "PENDING",
+            createdAt: "2026-09-14T15:00:00Z"
+        ])
+    }
+}
+```
+
+### Contract 4: `shouldUpdateOrder.groovy` (`PUT /api/orders/100`)
+```groovy
+package contracts.order
+
+import org.springframework.cloud.contract.spec.Contract
+
+Contract.make {
+    description "Should update an existing order status"
+    request {
+        method PUT()
+        url '/api/orders/100'
+        headers {
+            contentType(applicationJson())
+        }
+        body([
+            shippingAddress: "123 Main Street",
+            status: "SHIPPED"
+        ])
+    }
+    response {
+        status OK()
+        headers {
+            contentType(applicationJson())
+        }
+        body([
+            id: 100,
+            productId: 1,
+            quantity: 2,
+            totalAmount: 49.98,
+            shippingAddress: "123 Main Street",
+            status: "SHIPPED",
+            createdAt: "2026-09-14T15:00:00Z"
+        ])
+    }
+}
+```
+
+### Order Contract Base Class: `OrderBaseClass.java`
+```java
+package com.ecommerce.order;
+
+import com.ecommerce.ECommerceApplication;
+import com.ecommerce.order.dto.OrderResponse;
+import com.ecommerce.order.dto.PlaceOrderRequest;
+import com.ecommerce.order.dto.UpdateOrderRequest;
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import org.junit.jupiter.api.BeforeEach;
+import org.mockito.Mockito;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.web.servlet.MockMvc;
+import java.math.BigDecimal;
+import java.time.Instant;
+
+@SpringBootTest(classes = ECommerceApplication.class)
+@AutoConfigureMockMvc
+public abstract class OrderBaseClass {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private OrderService orderService;
+
+    @BeforeEach
+    public void setup() {
+        RestAssuredMockMvc.mockMvc(mockMvc);
+        Instant fixedTimestamp = Instant.parse("2026-09-14T15:00:00Z");
+        OrderResponse createdResponse = new OrderResponse(100L, 1L, 2, new BigDecimal("49.98"), "123 Main Street", OrderStatus.PENDING, fixedTimestamp);
+        Mockito.when(orderService.placeOrder(Mockito.any(PlaceOrderRequest.class))).thenReturn(createdResponse);
+
+        OrderResponse updatedResponse = new OrderResponse(100L, 1L, 2, new BigDecimal("49.98"), "123 Main Street", OrderStatus.SHIPPED, fixedTimestamp);
+        Mockito.when(orderService.updateOrder(Mockito.eq(100L), Mockito.any(UpdateOrderRequest.class))).thenReturn(updatedResponse);
     }
 }
 ```
@@ -373,7 +489,7 @@ CREATE TABLE IF NOT EXISTS orders (
 ### Verified Maven Test Run Screenshot (`mvn clean test`)
 
 ![Maven Test Results](docs/images/test_results_terminal.png)
-*Figure 3: Terminal Screenshot of Maven Test Execution - All 19 Tests Passed (BUILD SUCCESS)*
+*Figure 3: Terminal Screenshot of Maven Test Execution - All 21 Tests Passed (BUILD SUCCESS)*
 
 ### Terminal Execution Output (`mvn clean test`)
 
@@ -387,25 +503,27 @@ INFO  tc.postgres:16-alpine - Container postgres:16-alpine started in PT1.039S
 INFO  tc.postgres:16-alpine - Container is started (JDBC URL: jdbc:postgresql://localhost:60187/ecommerce_test)
 INFO  o.f.core.internal.command.DbMigrate - Migrating schema 'public' to version '1 - init schema'
 INFO  o.f.core.internal.command.DbMigrate - Successfully applied 1 migration to schema 'public', now at version v1
-[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.671 s -- in DockerTestDataIntegrationTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.916 s -- in DockerTestDataIntegrationTest
 [INFO] Running com.ecommerce.ECommerceIntegrationTest$UpdateOrderTests
-[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.121 s -- in UpdateOrderTests
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.123 s -- in UpdateOrderTests
 [INFO] Running com.ecommerce.ECommerceIntegrationTest$PlaceOrderTests
-[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.278 s -- in PlaceOrderTests
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.274 s -- in PlaceOrderTests
 [INFO] Running com.ecommerce.ECommerceIntegrationTest$CreateProductTests
-[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.067 s -- in CreateProductTests
-[INFO] Running com.ecommerce.product.Product_serviceTest
-[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.220 s -- in Product_serviceTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.068 s -- in CreateProductTests
+[INFO] Running com.ecommerce.OrderTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.301 s -- in OrderTest
+[INFO] Running com.ecommerce.Product_serviceTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.062 s -- in Product_serviceTest
 [INFO] 
 [INFO] Results:
 [INFO] 
-[INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0
 [INFO] 
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD SUCCESS
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  15.605 s
-[INFO] Finished at: 2026-09-14T15:49:27+08:00
+[INFO] Total time:  18.682 s
+[INFO] Finished at: 2026-09-14T16:00:51+08:00
 [INFO] ------------------------------------------------------------------------
 ```
 
@@ -413,4 +531,4 @@ INFO  o.f.core.internal.command.DbMigrate - Successfully applied 1 migration to 
 
 ## 7. Conclusion
 
-All requirements stipulated for **Task 1 (Integration Testing)**, **Task 2 (Contract Testing)**, **Task 3 (Test Data Management)**, and **Task 4 (Documentation)** have been comprehensively implemented, tested, and validated. Furthermore, all **5 automated testing acceptance criteria** have been achieved and verified against real Docker Testcontainers and Flyway schema migrations. The project provides a bulletproof enterprise testing blueprint ready for production CI/CD deployment.
+All requirements stipulated for **Task 1 (Integration Testing)**, **Task 2 (Contract Testing)**, **Task 3 (Test Data Management)**, and **Task 4 (Documentation)** have been comprehensively implemented, tested, and validated across 21 test cases. Furthermore, all **5 automated testing acceptance criteria** have been achieved and verified against real Docker Testcontainers and Flyway schema migrations. The project provides a bulletproof enterprise testing blueprint ready for production CI/CD deployment.

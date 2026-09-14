@@ -11,6 +11,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.ecommerce.ECommerceApplication;
+
 /**
  * Base integration test class implementing the Testcontainers Singleton Container Pattern.
  * Fulfills all 5 Acceptance Criteria:
@@ -20,7 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 4. "Programmatic entity factories deliver valid Product and Order objects for test setups."
  * 5. "Database state resets between test executions via transaction rollbacks or table truncation hooks."
  */
-@SpringBootTest
+@SpringBootTest(classes = ECommerceApplication.class)
 @AutoConfigureMockMvc
 public abstract class AbstractContainerIntegrationTest {
 

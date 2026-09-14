@@ -131,7 +131,7 @@
                 <extensions>true</extensions>
                 <configuration>
                     <testFramework>JUNIT5</testFramework>
-                    <packageWithSignedContracts>com.ecommerce</packageWithSignedContracts>
+                    <basePackageForTests>com.ecommerce</basePackageForTests>
                     <baseClassMappings>
                         <baseClassMapping>
                             <contractPackageRegex>.*order.*</contractPackageRegex>
