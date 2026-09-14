@@ -1,12 +1,14 @@
 package com.ecommerce.product;
 
-import com.ecommerce.AbstractContainerIntegrationTest;
-import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import java.math.BigDecimal;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.math.BigDecimal;
+import com.ecommerce.AbstractContainerIntegrationTest;
+
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
 
 public abstract class ProductBaseTest extends AbstractContainerIntegrationTest {
 
