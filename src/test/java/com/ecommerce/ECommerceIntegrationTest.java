@@ -68,7 +68,7 @@ class ECommerceIntegrationTest {
                     50
             );
 
-            MvcResult result = mockMvc.perform(post("/api/products")
+            MvcResult result = mockMvc.perform(post("/api/v1/items")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())
@@ -100,7 +100,7 @@ class ECommerceIntegrationTest {
                     10
             );
 
-            mockMvc.perform(post("/api/products")
+            mockMvc.perform(post("/api/v1/items")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
@@ -121,7 +121,7 @@ class ECommerceIntegrationTest {
                     -10
             );
 
-            mockMvc.perform(post("/api/products")
+            mockMvc.perform(post("/api/v1/items")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
@@ -134,7 +134,7 @@ class ECommerceIntegrationTest {
         }
 
         @Test
-        @DisplayName("4. Read-After-Create: Create product and immediately retrieve via GET /api/products/{id}")
+        @DisplayName("4. Read-After-Create: Create product and immediately retrieve via GET /api/v1/items/{id}")
         void createProduct_ThenGetById_Returns200WithAccurateDetails() throws Exception {
             CreateProductRequest request = new CreateProductRequest(
                     "Mechanical Keyboard",
@@ -143,7 +143,7 @@ class ECommerceIntegrationTest {
                     30
             );
 
-            MvcResult postResult = mockMvc.perform(post("/api/products")
+            MvcResult postResult = mockMvc.perform(post("/api/v1/items")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isCreated())
@@ -151,7 +151,7 @@ class ECommerceIntegrationTest {
 
             Long createdId = objectMapper.readTree(postResult.getResponse().getContentAsString()).get("id").asLong();
 
-            mockMvc.perform(get("/api/products/" + createdId))
+            mockMvc.perform(get("/api/v1/items/" + createdId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id", is(createdId.intValue())))
                     .andExpect(jsonPath("$.name", is("Mechanical Keyboard")))

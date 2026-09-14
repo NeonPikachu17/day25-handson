@@ -1,7 +1,7 @@
 org.springframework.cloud.contract.spec.Contract.make {
     request {
         method 'GET'
-        url '/api/products/1'
+        url '/api/v1/items/1'
     }
     response {
         status 200

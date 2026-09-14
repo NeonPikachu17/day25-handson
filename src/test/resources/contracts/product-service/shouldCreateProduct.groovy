@@ -1,7 +1,7 @@
 org.springframework.cloud.contract.spec.Contract.make {
     request {
         method 'POST'
-        url '/api/products'
+        url '/api/v1/items'
         headers {
             contentType('application/json')
         }

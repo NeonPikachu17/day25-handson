@@ -59,39 +59,40 @@ class DockerTestDataIntegrationTest {
     }
 
     @Test
-    @DisplayName("Verify pre-seeded baseline test data exists in Docker PostgreSQL")
+    @DisplayName("Verify pre-seeded bakery test data exists in Docker PostgreSQL (Cookies & Pastries in PHP)")
     void testPreSeededDataInDockerDatabase() throws Exception {
-        // Query the Docker PostgreSQL database for the baseline product seeded by init-test-data.sql
-        mockMvc.perform(get("/api/products"))
+        // Query the Docker PostgreSQL database for the baseline bakery product seeded by init-test-data.sql
+        mockMvc.perform(get("/api/v1/items"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", not(empty())))
-                .andExpect(jsonPath("$[*].name", hasItem("Test Gaming Laptop")));
+                .andExpect(jsonPath("$[*].name", hasItem("Chocolate Chip Cookie Box")));
     }
 
     @Test
-    @DisplayName("Place order against Docker test database and verify persistence in container")
+    @DisplayName("Place pastry order against Docker test database and verify PHP total amount and stock deduction")
     void testPlaceOrderAgainstDockerContainerDatabase() throws Exception {
-        // Find the seeded product 'Test Gaming Laptop'
-        Optional<Product> laptopOpt = productRepository.findAll().stream()
-                .filter(p -> p.getName().equals("Test Gaming Laptop"))
+        // Find the seeded product 'Chocolate Chip Cookie Box' (PHP 250.00 each, 20 in stock)
+        Optional<Product> cookieOpt = productRepository.findAll().stream()
+                .filter(p -> p.getName().equals("Chocolate Chip Cookie Box"))
                 .findFirst();
 
-        assertThat(laptopOpt).isPresent();
-        Product laptop = laptopOpt.get();
-        int initialStock = laptop.getStock();
+        assertThat(cookieOpt).isPresent();
+        Product cookieBox = cookieOpt.get();
+        int initialStock = cookieBox.getStock();
 
         PlaceOrderRequest orderRequest = new PlaceOrderRequest(
-                laptop.getId(),
+                cookieBox.getId(),
                 2,
-                "999 Docker Container Way, Suite 10"
+                "Unit 4B, BGC High Street, Taguig City, Metro Manila"
         );
 
         MvcResult result = mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(orderRequest)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.productId", is(laptop.getId().intValue())))
+                .andExpect(jsonPath("$.productId", is(cookieBox.getId().intValue())))
                 .andExpect(jsonPath("$.quantity", is(2)))
+                .andExpect(jsonPath("$.totalAmount", is(500.00))) // PHP 250.00 * 2 = PHP 500.00
                 .andExpect(jsonPath("$.status", is("CONFIRMED")))
                 .andReturn();
 
@@ -100,10 +101,11 @@ class DockerTestDataIntegrationTest {
         // Verify order is saved in the real Docker PostgreSQL database
         Order savedOrder = orderRepository.findById(orderId).orElse(null);
         assertThat(savedOrder).isNotNull();
-        assertThat(savedOrder.getShippingAddress()).isEqualTo("999 Docker Container Way, Suite 10");
+        assertThat(savedOrder.getShippingAddress()).isEqualTo("Unit 4B, BGC High Street, Taguig City, Metro Manila");
+        assertThat(savedOrder.getTotalAmount()).isEqualByComparingTo("500.00");
 
-        // Verify stock is decremented in Docker PostgreSQL
-        Product updatedLaptop = productRepository.findById(laptop.getId()).orElseThrow();
-        assertThat(updatedLaptop.getStock()).isEqualTo(initialStock - 2);
+        // Verify stock is decremented in Docker PostgreSQL (20 - 2 = 18)
+        Product updatedCookieBox = productRepository.findById(cookieBox.getId()).orElseThrow();
+        assertThat(updatedCookieBox.getStock()).isEqualTo(initialStock - 2);
     }
 }
