@@ -74,6 +74,11 @@
             <artifactId>spring-cloud-starter-contract-verifier</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>spring-mock-mvc</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -88,8 +93,18 @@
                 <version>4.1.2</version>
                 <extensions>true</extensions>
                 <configuration>
-                    <baseClassForTests>com.ecommerce.product.ProductBaseTest</baseClassForTests>
                     <testFramework>JUNIT5</testFramework>
+                    <packageWithSignedContracts>com.ecommerce</packageWithSignedContracts>
+                    <baseClassMappings>
+                        <baseClassMapping>
+                            <contractPackageRegex>.*order.*</contractPackageRegex>
+                            <baseClassFQN>com.ecommerce.order.OrderBaseClass</baseClassFQN>
+                        </baseClassMapping>
+                        <baseClassMapping>
+                            <contractPackageRegex>.*product.*</contractPackageRegex>
+                            <baseClassFQN>com.ecommerce.product.ProductBaseTest</baseClassFQN>
+                        </baseClassMapping>
+                    </baseClassMappings>
                 </configuration>
             </plugin>
         </plugins>

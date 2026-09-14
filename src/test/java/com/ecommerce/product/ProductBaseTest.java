@@ -1,14 +1,18 @@
 package com.ecommerce.product;
 
-import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import java.math.BigDecimal;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.web.context.WebApplicationContext;
 
-import java.math.BigDecimal;
+import com.ecommerce.ECommerceApplication;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
+
+@SpringBootTest(classes = ECommerceApplication.class)
+// @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 public abstract class ProductBaseTest {
 
     @Autowired
