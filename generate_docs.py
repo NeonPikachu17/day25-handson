@@ -577,10 +577,11 @@ public abstract class OrderBaseClass {
         "and verification layers for all five acceptance criteria:"
     )
 
-    # Acceptance Criteria Compliance Table
-    t_ac = doc.add_table(rows=6, cols=4)
+    # Acceptance Criteria & Compliance Matrix Table
+    doc.add_heading(level=2).add_run("Acceptance Criteria & Compliance Matrix").font.color.rgb = RGBColor(30, 58, 138)
+    t_ac = doc.add_table(rows=6, cols=3)
     t_ac.alignment = WD_TABLE_ALIGNMENT.CENTER
-    ac_headers = ["#", "Acceptance Criterion", "How We Fixed / Implemented It", "Architectural Layer & Mechanism"]
+    ac_headers = ["Acceptance Criteria", "Status", "Verification Evidence"]
     for i, h in enumerate(ac_headers):
         cell = t_ac.rows[0].cells[i]
         set_cell_background(cell, "1E3A8A")
@@ -591,65 +592,53 @@ public abstract class OrderBaseClass {
         r.font.color.rgb = RGBColor(255, 255, 255)
 
     ac_data = [
-        ("AC-1", 
-         "Integration tests launch a throwaway PostgreSQL container automatically upon execution.", 
-         "Eliminated external manual DB dependencies and in-memory mock disparities (H2) by adopting the Testcontainers Singleton Pattern in AbstractContainerIntegrationTest. Spawns postgres:16-alpine with Ryuk 0.8.1 sidecar. Container boots once in ~1s and is cleanly destroyed on JVM exit.",
-         "Infrastructure / Container Orchestration Layer: Managed via Testcontainers Java API and Docker daemon named pipe socket."),
-        ("AC-2", 
-         "Database dynamic ports bind seamlessly in local environments and CI/CD pipelines.", 
-         "Eliminated static host port 5432 conflicts. Testcontainers binds internal port 5432 to random ephemeral host ports (e.g. 61533). @DynamicPropertySource intercepts and injects postgres::getJdbcUrl, username, and password into Spring's environment before context initialization.",
-         "Configuration / Property Injection Layer: DynamicPropertyRegistry dynamically bridging Docker runtime host ports to Spring ApplicationContext."),
-        ("AC-3", 
-         "Schema migrations (Flyway) auto-apply when the test container starts.", 
-         "Eliminated schema drift caused by Hibernate ddl-auto=create. Integrated Flyway 10.10.0 with versioned DDL (V1__init_schema.sql) in db/migration. Set spring.flyway.enabled=true and locked Hibernate to ddl-auto=validate for single-source-of-truth schema management.",
-         "Database Migration & Schema Validation Layer: Flyway executes DDL upon HikariDataSource creation, prior to JPA EntityManagerFactory creation."),
-        ("AC-4", 
-         "Programmatic entity factories deliver valid Product and Order objects for test setups.", 
-         "Replaced brittle, duplicate in-test JSON strings and manual entity setups with strongly typed ProductFactory and OrderFactory builders. Fixtures strictly model artisan bakery items (Chocolate Chip Cookie Box, Ube Cheese Pandesal) with BigDecimal calculations in Philippine Pesos (PHP).",
-         "Test Fixture & Domain Factory Layer: Supplies standardized, strongly typed domain aggregates to both MockMvc tests and JPA repositories."),
-        ("AC-5", 
-         "Database state resets between test executions via transaction rollbacks or table truncation hooks.", 
-         "Avoided false-positive transactional rollback issues in multi-threaded HTTP MockMvc dispatches by implementing an automated @BeforeEach truncation hook executing 'TRUNCATE TABLE orders, products RESTART IDENTITY CASCADE'. Resets data and ID sequences in <5ms.",
-         "Test Isolation & Lifecycle Interceptor Layer: Pre-test JUnit 5 lifecycle hook executing raw DDL/DML via JdbcTemplate.")
+        ("Integration tests launch a throwaway PostgreSQL container automatically upon execution.", 
+         "MET",
+         "Configured in AbstractContainerIntegrationTest.java using Testcontainers 1.20.1 and the Singleton Container pattern (PostgreSQLContainer 'postgres:16-alpine'). Automatically instantiated in a static initializer block before test context execution, eliminating external manual database setup. Supervised by the Ryuk Resource Reaper sidecar (testcontainers/ryuk:0.8.1) via TCP heartbeat, which cleanly tears down and purges all containers and networks upon JVM termination. Verified in test execution logs: 'tc.postgres:16-alpine - Container postgres:16-alpine started in PT1.901S'."),
+        ("Database dynamic ports bind seamlessly in local environments and CI/CD pipelines.", 
+         "MET",
+         "Implemented in AbstractContainerIntegrationTest.java using Spring Boot's @DynamicPropertySource. Testcontainers binds the container's internal PostgreSQL port 5432 to a random available ephemeral host port (e.g. localhost:61533). Properties 'spring.datasource.url', 'spring.datasource.username', and 'spring.datasource.password' are dynamically injected into the Spring ApplicationContext at runtime, completely eliminating port 5432 conflicts in local developer workstations and parallel CI/CD runners. Verified in logs: 'JDBC URL: jdbc:postgresql://localhost:61533/ecommerce_test'."),
+        ("Schema migrations (Flyway) auto-apply when the test container starts.", 
+         "MET",
+         "Implemented using Flyway 10.10.0 with version-controlled migration scripts (src/main/resources/db/migration/V1__init_schema.sql). In AbstractContainerIntegrationTest.java, 'spring.flyway.enabled=true' triggers schema execution immediately upon DataSource connection pool initialization, creating products, orders, and flyway_schema_history tables. Hibernate 'spring.jpa.hibernate.ddl-auto=validate' strictly validates JPA entities against the Flyway schema, preventing schema drift. Verified in logs: 'Migrating schema public to version 1 - init schema' and 'Successfully applied 1 migration'."),
+        ("Programmatic entity factories deliver valid Product and Order objects for test setups.", 
+         "MET",
+         "Implemented in ProductFactory.java and OrderFactory.java via strongly-typed builder and convenience factory methods (e.g., ProductFactory.createValidProduct(), ProductFactory.createUbePandesal(), OrderFactory.createValidOrder()). Standardized on the Artisan Bakery domain fixtures with monetary calculations strictly formatted in Philippine Pesos (PHP) using java.math.BigDecimal. Utilized across all 15 integration tests in ECommerceIntegrationTest.java and DockerTestDataIntegrationTest.java for clean, isolated test data setup."),
+        ("Database state resets between test executions via transaction rollbacks or table truncation hooks.", 
+         "MET",
+         "Implemented in AbstractContainerIntegrationTest.java via a JUnit 5 @BeforeEach lifecycle hook using Spring JdbcTemplate. Executes 'TRUNCATE TABLE orders, products RESTART IDENTITY CASCADE' before every single test method runs. Completely purges all persisted data and resets auto-increment primary key identity sequences back to 1 in <5ms, guaranteeing 100% test isolation and zero state pollution across all 21 test executions without the heavy overhead of restarting containers.")
     ]
 
-    for idx, (cid, ctitle, cfix, clayer) in enumerate(ac_data):
+    for idx, (ctitle, cstatus, cevidence) in enumerate(ac_data):
         row = t_ac.rows[idx + 1]
-        c0, c1, c2, c3 = row.cells[0], row.cells[1], row.cells[2], row.cells[3]
-        c0.width = Inches(0.5)
-        c1.width = Inches(1.8)
-        c2.width = Inches(2.3)
-        c3.width = Inches(1.9)
+        c0, c1, c2 = row.cells[0], row.cells[1], row.cells[2]
+        c0.width = Inches(1.8)
+        c1.width = Inches(0.8)
+        c2.width = Inches(3.9)
         bg = "F8FAFC" if idx % 2 == 0 else "FFFFFF"
         set_cell_background(c0, bg)
         set_cell_background(c1, bg)
         set_cell_background(c2, bg)
-        set_cell_background(c3, bg)
         set_cell_margins(c0, 40, 40, 50, 50)
         set_cell_margins(c1, 40, 40, 50, 50)
         set_cell_margins(c2, 40, 40, 50, 50)
-        set_cell_margins(c3, 40, 40, 50, 50)
 
         p0 = c0.paragraphs[0]
-        r0 = p0.add_run(cid)
+        r0 = p0.add_run(ctitle)
         r0.font.bold = True
         r0.font.size = Pt(8.0)
-        r0.font.color.rgb = RGBColor(30, 58, 138)
+        r0.font.color.rgb = RGBColor(15, 23, 42)
 
         p1 = c1.paragraphs[0]
-        r1 = p1.add_run(ctitle)
+        r1 = p1.add_run(cstatus)
         r1.font.bold = True
         r1.font.size = Pt(8.0)
+        r1.font.color.rgb = RGBColor(16, 185, 129) # Emerald Green for MET
 
         p2 = c2.paragraphs[0]
-        r2 = p2.add_run(cfix)
+        r2 = p2.add_run(cevidence)
         r2.font.size = Pt(8.0)
         r2.font.color.rgb = RGBColor(51, 65, 85)
-
-        p3 = c3.paragraphs[0]
-        r3 = p3.add_run(clayer)
-        r3.font.size = Pt(8.0)
-        r3.font.color.rgb = RGBColor(51, 65, 85)
 
     doc.add_paragraph().paragraph_format.space_after = Pt(8)
 
