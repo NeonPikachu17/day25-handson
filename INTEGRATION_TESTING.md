@@ -1,69 +1,110 @@
-# 🧪 Integration Testing Documentation
+# 🛒 E-Commerce Integration Testing Documentation
 
-Comprehensive documentation for the integration testing suite implemented for **Task 1: Integration Testing** of the E-Commerce backend service.
+Comprehensive technical documentation for the integration testing suite implemented for **Task 1: Integration Testing** of the E-Commerce backend service.
 
 ---
 
 ## 📌 Executive Summary
 
-| Item | Details |
+| Attribute | Specification |
 |---|---|
-| **Task** | Task 1: Integration Testing |
-| **Required Scenarios** | 1. Create a new product<br>2. Place a new order<br>3. Update an existing order |
+| **Task Goal** | Task 1: Integration Testing for E-Commerce Domain |
+| **Mandatory Scenarios** | 1. Create a new product<br>2. Place a new order<br>3. Update an existing order |
 | **Minimum Required Cases** | At least 5 test cases |
-| **Implemented Test Cases** | **15 test cases** (300% of requirement) |
-| **Test Framework** | JUnit 5 (Jupiter), Spring Test (`MockMvc`), AssertJ |
-| **Target Test Class** | [`ECommerceIntegrationTest.java`](file:///c:/Users/ABS83779/.gemini/antigravity-ide/scratch/day-25/day25-handson/src/test/java/com/ecommerce/ECommerceIntegrationTest.java) |
-| **Execution Status** | **15 Passed, 0 Failures, 0 Errors, 0 Skipped** (`BUILD SUCCESS`) |
+| **Delivered Test Cases** | **15 test cases** (300% coverage of requirement) |
+| **Testing Framework** | JUnit 5 Jupiter, Spring Test (`MockMvc`), AssertJ, Hamcrest |
+| **Persistence Environment** | Spring Data JPA, Hibernate 6.5, H2 In-Memory (`test` profile) |
+| **Source File Link** | [`ECommerceIntegrationTest.java`](file:///c:/Users/ABS83779/.gemini/antigravity-ide/scratch/day-25/day25-handson/src/test/java/com/ecommerce/ECommerceIntegrationTest.java) |
+| **Verification Result** | **15 Passed, 0 Failures, 0 Errors, 0 Skipped** (`BUILD SUCCESS`) |
 
 ---
 
-## 🏗️ Architecture & Test Setup
+## 🏛️ System Architecture & Testing Flow
 
-The integration test suite runs full-stack slice tests using Spring Boot's testing infrastructure, validating requests from the HTTP controller layer through services down to the relational database persistence layer.
+The integration test suite utilizes Spring Boot's test slice configuration (`@SpringBootTest` + `@AutoConfigureMockMvc`). It tests the complete request-response cycle across the HTTP controllers, business services, validation logic, and the relational database persistence layer without requiring external network overhead.
 
-### Key Annotations & Tools
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Test as MockMvc Test Runner
+    participant Filter as Bean Validation / Dispatcher
+    participant Ctrl as Controller Layer
+    participant Svc as Service Layer (Transactional)
+    participant Repo as JPA Repositories
+    participant DB as H2 In-Memory Database
 
-| Annotation / Tool | Purpose |
-|---|---|
-| `@SpringBootTest` | Boots the full Spring ApplicationContext with real beans and domain services. |
-| `@AutoConfigureMockMvc` | Automatically provides and configures `MockMvc` to perform mock HTTP requests without starting a network server. |
-| `@ActiveProfiles("test")` | Activates `application-test.yml`, using an isolated, in-memory H2 database (`jdbc:h2:mem:testdb`). |
-| `@Nested` | Groups test cases hierarchically by scenario for clean reporting and IDE organization. |
-| `@DisplayName` | Provides human-readable descriptions of what each test proves. |
-| `@BeforeEach` | Purges both `orders` and `products` tables between tests ensuring clean isolation and zero test coupling. |
-| `AssertJ` & `MockMvcResultMatchers` | Fluent assertions for HTTP status codes, JSON response body paths, and database entity state. |
-
----
-
-## 📊 Test Case Coverage Matrix
-
-The suite covers **Happy Paths**, **Negative Paths (Validation & Error Handling)**, **State Machine Constraints**, and **Data Consistency**:
-
-```
-                              Integration Test Suite (15 Tests)
-                                              │
-         ┌────────────────────────────────────┼────────────────────────────────────┐
-         ▼                                    ▼                                    ▼
-Scenario 1: Create Product           Scenario 2: Place Order             Scenario 3: Update Order
-  ├─ 1. Happy (201 + DB verify)        ├─ 5. Happy (201 + stock deduct)    ├─ 10. Happy (200 + address & status)
-  ├─ 2. Blank Name (400)               ├─ 6. Insufficient Stock (400)      ├─ 11. Address Only (200 + status kept)
-  ├─ 3. Negative Price/Stock (400)     ├─ 7. Product Not Found (404)       ├─ 12. Non-existent Order (404)
-  └─ 4. Read-after-create (200)        ├─ 8. Quantity Zero (400)           ├─ 13. Terminal CANCELLED (400)
-                                       └─ 9. Blank Address (400)           ├─ 14. Terminal SHIPPED (400)
-                                                                           └─ 15. Stock Restored on Cancel (200)
+    Test->>Filter: HTTP Request (POST / PUT / GET)
+    alt Payload Validation Fails (@Valid)
+        Filter-->>Test: 400 Bad Request (Validation Failed JSON)
+    else Payload Valid
+        Filter->>Ctrl: Dispatch to Controller
+        Ctrl->>Svc: Invoke Service Method
+        Svc->>Repo: Query & Apply Business Rules
+        Repo->>DB: SQL Queries & Mutation
+        DB-->>Repo: Persistent Entity
+        Repo-->>Svc: Domain Model
+        Svc-->>Ctrl: DTO Response
+        Ctrl-->>Test: HTTP 200 / 201 / 400 / 404
+    end
 ```
 
 ---
 
-## 🔬 Detailed Test Catalog
+## 🔄 Order Lifecycle & Inventory State Machine
 
-### Scenario 1: Create a New Product
+The order service implements strict state machine constraints and inventory invariants:
 
-#### Test 1: `createProduct_ValidPayload_Returns201AndPersistsInDb`
-* **Type**: Happy Path
-* **Method**: `POST /api/products`
-* **Request Body**:
+```mermaid
+stateDiagram-v2
+    [*] --> CONFIRMED: Place Order<br/>(Inventory Decremented)
+    CONFIRMED --> SHIPPED: Update Order (Status = SHIPPED)
+    CONFIRMED --> CANCELLED: Update Order (Status = CANCELLED)<br/>(Inventory Restored)
+    
+    SHIPPED --> [*]: Terminal State (No Updates Allowed)
+    CANCELLED --> [*]: Terminal State (No Updates Allowed)
+
+    note right of SHIPPED
+      Any further PUT returns 
+      400 Bad Request
+    end note
+
+    note right of CANCELLED
+      Any further PUT returns 
+      400 Bad Request
+    end note
+```
+
+---
+
+## 📊 Test Case Specification Matrix
+
+| # | Scenario | Test Case Name | Type | Input Highlights | Expected Status | Verified State / Side Effects |
+|---|---|---|---|---|---|---|
+| **1** | **Create Product** | `createProduct_ValidPayload_...` | Happy Path | Name, desc, price 199.99, stock 50 | `201 Created` | ID generated; entity verified in DB via repository |
+| **2** | **Create Product** | `createProduct_InvalidPayload_BlankName_...` | Negative | `name: ""` (blank) | `400 Bad Request` | Error key `errors.name`; DB count remains 0 |
+| **3** | **Create Product** | `createProduct_InvalidPayload_NegativePriceAndStock_...` | Negative | `price: -25.50`, `stock: -10` | `400 Bad Request` | Rejection by `@Positive` and `@PositiveOrZero` |
+| **4** | **Create Product** | `createProduct_ThenGetById_...` | Read-After-Create | Create product then `GET /{id}` | `200 OK` | Retrieved JSON fields strictly match created record |
+| **5** | **Place Order** | `placeOrder_ValidProductAndStock_...` | Happy Path | `quantity: 3`, stock is 10 | `201 Created` | Total calculated (3 × $89.50 = $268.50); Stock decremented to 7 |
+| **6** | **Place Order** | `placeOrder_InsufficientStock_...` | Negative | `quantity: 5`, stock is 2 | `400 Bad Request` | `error: "Insufficient Stock"`; 0 orders saved; stock unchanged |
+| **7** | **Place Order** | `placeOrder_NonExistentProduct_...` | Negative | `productId: 999999` | `404 Not Found` | Message: "Product not found with id: 999999" |
+| **8** | **Place Order** | `placeOrder_InvalidQuantityZero_...` | Negative | `quantity: 0` | `400 Bad Request` | Triggered by `@Min(1)` on `quantity` |
+| **9** | **Place Order** | `placeOrder_BlankShippingAddress_...` | Negative | `shippingAddress: "   "` | `400 Bad Request` | Triggered by `@NotBlank` on `shippingAddress` |
+| **10** | **Update Order** | `updateOrder_ValidAddressAndStatus_...` | Happy Path | New address + status `SHIPPED` | `200 OK` | Address updated; status transitioned to `SHIPPED` |
+| **11** | **Update Order** | `updateOrder_AddressOnly_...` | Happy Path | New address + `status: null` | `200 OK` | Address changed; status preserved as `CONFIRMED` |
+| **12** | **Update Order** | `updateOrder_NonExistentOrder_...` | Negative | `orderId: 999999` | `404 Not Found` | Message: "Order not found with id: 999999" |
+| **13** | **Update Order** | `updateOrder_AlreadyCancelled_...` | Negative | Update order already `CANCELLED` | `400 Bad Request` | Terminal guard: "Cannot update order in CANCELLED status" |
+| **14** | **Update Order** | `updateOrder_AlreadyShipped_...` | Negative | Update order already `SHIPPED` | `400 Bad Request` | Terminal guard: "Cannot update order in SHIPPED status" |
+| **15** | **Update Order** | `updateOrder_CancelOrder_RestoresProductStock` | State Transition | `status: CANCELLED` | `200 OK` | Inventory restored back to product (`7 + 3 = 10`) |
+
+---
+
+## 🔬 Deep-Dive: Scenario Implementations
+
+### Scenario 1: Create a New Product (4 Cases)
+
+#### 1. Happy Path: Successful Creation & Database Persistence
+* **Endpoint**: `POST /api/products`
+* **Payload**:
   ```json
   {
     "name": "Noise Cancelling Headphones",
@@ -72,158 +113,86 @@ Scenario 1: Create Product           Scenario 2: Place Order             Scenari
     "stock": 50
   }
   ```
-* **Verifications**:
-  1. HTTP Status `201 Created`
-  2. JSON Response contains non-null `id`, correct `name`, `price`, and `stock`.
-  3. Direct database lookup via `productRepository.findById(createdId)` confirms entity was persisted with exact fields.
+* **Assertion**: Verifies HTTP 201, inspects response JSON for assigned ID, and performs direct repository query `productRepository.findById(createdId)` ensuring accurate database storage.
 
-#### Test 2: `createProduct_InvalidPayload_BlankName_Returns400`
-* **Type**: Negative Path (Bean Validation)
-* **Method**: `POST /api/products`
-* **Request Body**: Name set to empty string `""`
-* **Verifications**:
-  1. HTTP Status `400 Bad Request`
-  2. JSON error response has `status: 400`, `error: "Validation Failed"`, and field error `errors.name`.
-  3. Database count remains `0`.
+#### 2. Negative Path: Blank Product Name
+* **Endpoint**: `POST /api/products`
+* **Payload**: `{ "name": "", "price": 49.99, "stock": 10 }`
+* **Assertion**: Validates `GlobalExceptionHandler` returns HTTP 400 with structured validation payload `{ "error": "Validation Failed", "errors": { "name": "Product name cannot be blank" } }`. Verifies no record added to database.
 
-#### Test 3: `createProduct_InvalidPayload_NegativePriceAndStock_Returns400`
-* **Type**: Negative Path (Boundary / Bean Validation)
-* **Method**: `POST /api/products`
-* **Request Body**: `price: -25.50`, `stock: -10`
-* **Verifications**:
-  1. HTTP Status `400 Bad Request`
-  2. Validation errors emitted for both `errors.price` (`@Positive`) and `errors.stock` (`@PositiveOrZero`).
-  3. No record created in database.
+#### 3. Negative Path: Negative Price & Stock Values
+* **Endpoint**: `POST /api/products`
+* **Payload**: `{ "name": "Faulty Gadget", "price": -25.50, "stock": -10 }`
+* **Assertion**: Verifies bean validation constraints (`@Positive` on price, `@PositiveOrZero` on stock) reject bad values before reaching persistence.
 
-#### Test 4: `createProduct_ThenGetById_Returns200WithAccurateDetails`
-* **Type**: Happy Path (Read-After-Create Flow)
-* **Method**: `POST /api/products` followed by `GET /api/products/{id}`
-* **Verifications**:
-  1. Create returns `201 Created`.
-  2. Subsequent GET with the created ID returns `200 OK`.
-  3. Validates end-to-end data read consistency across endpoints.
+#### 4. Read-After-Create Verification
+* **Endpoints**: `POST /api/products` ➔ `GET /api/products/{id}`
+* **Assertion**: Asserts read consistency across HTTP verbs (POST generates ID, GET retrieves the exact persisted record).
 
 ---
 
-### Scenario 2: Place a New Order
+### Scenario 2: Place a New Order (5 Cases)
 
-#### Test 5: `placeOrder_ValidProductAndStock_Returns201AndDeductsInventory`
-* **Type**: Happy Path & Business Logic
-* **Setup**: Pre-save Product in DB with `price: 89.50`, `stock: 10`.
-* **Method**: `POST /api/orders`
-* **Request Body**:
-  ```json
-  {
-    "productId": 1,
-    "quantity": 3,
-    "shippingAddress": "123 Tech Lane, Silicon Valley, CA"
-  }
-  ```
-* **Verifications**:
-  1. HTTP Status `201 Created`.
-  2. Total amount calculated accurately: `89.50 * 3 = 268.50`.
-  3. Order saved in DB with status `CONFIRMED`.
-  4. **Inventory side-effect**: Product stock decremented from `10` to `7` (`10 - 3 = 7`).
+#### 5. Happy Path: Order Placement with Inventory Deduction
+* **Endpoint**: `POST /api/orders`
+* **Payload**: `{ "productId": 1, "quantity": 3, "shippingAddress": "123 Tech Lane" }`
+* **Business Invariant**:
+  - `totalAmount = product.price * quantity` ($89.50 * 3 = $268.50)
+  - `product.stock = initialStock - quantity` (10 - 3 = 7)
+* **Assertion**: Asserts HTTP 201, checks `order.status == CONFIRMED`, and confirms stock decremented in the product repository.
 
-#### Test 6: `placeOrder_InsufficientStock_Returns400AndDoesNotCreateOrder`
-* **Type**: Negative Path (Business Constraint)
-* **Setup**: Product has `stock: 2`.
-* **Method**: `POST /api/orders` requesting `quantity: 5`.
-* **Verifications**:
-  1. HTTP Status `400 Bad Request`.
-  2. JSON response: `error: "Insufficient Stock"`.
-  3. Zero orders created in DB (`orderRepository.count() == 0`).
-  4. Product stock untouched (`stock == 2`).
+#### 6. Negative Path: Insufficient Stock
+* **Endpoint**: `POST /api/orders`
+* **Scenario**: Product stock is 2, order requests 5.
+* **Assertion**: Throws `InsufficientStockException`, mapped by handler to HTTP 400 `{ "error": "Insufficient Stock" }`. Confirms 0 orders created and stock remains 2.
 
-#### Test 7: `placeOrder_NonExistentProduct_Returns404`
-* **Type**: Negative Path (Resource Missing)
-* **Method**: `POST /api/orders` with `productId: 999999`.
-* **Verifications**:
-  1. HTTP Status `404 Not Found`.
-  2. Error message explicitly informs: `"Product not found with id: 999999"`.
-  3. No order persisted.
+#### 7. Negative Path: Non-Existent Product ID
+* **Endpoint**: `POST /api/orders`
+* **Payload**: `{ "productId": 999999, "quantity": 1, "shippingAddress": "Nowhere" }`
+* **Assertion**: Throws `ResourceNotFoundException`, returns HTTP 404 `{ "error": "Not Found", "message": "Product not found with id: 999999" }`.
 
-#### Test 8: `placeOrder_InvalidQuantityZero_Returns400`
-* **Type**: Negative Path (Bean Validation)
-* **Method**: `POST /api/orders` with `quantity: 0`.
-* **Verifications**:
-  1. HTTP Status `400 Bad Request`.
-  2. Error payload flags `errors.quantity` violation (`@Min(1)`).
-
-#### Test 9: `placeOrder_BlankShippingAddress_Returns400`
-* **Type**: Negative Path (Bean Validation)
-* **Method**: `POST /api/orders` with `shippingAddress: "   "`.
-* **Verifications**:
-  1. HTTP Status `400 Bad Request`.
-  2. Field error triggered for `errors.shippingAddress` (`@NotBlank`).
+#### 8 & 9. Negative Path: Invalid Quantity & Blank Address
+* **Validation**:
+  - Quantity `0` triggers `@Min(value = 1)` ➔ HTTP 400.
+  - Shipping address `"   "` triggers `@NotBlank` ➔ HTTP 400.
 
 ---
 
-### Scenario 3: Update an Existing Order
+### Scenario 3: Update an Existing Order (6 Cases)
 
-#### Test 10: `updateOrder_ValidAddressAndStatus_Returns200AndUpdatesState`
-* **Type**: Happy Path (Full Update)
-* **Setup**: Order exists in `CONFIRMED` status.
-* **Method**: `PUT /api/orders/{id}`
-* **Request Body**:
-  ```json
-  {
-    "shippingAddress": "New Address 200, Suite 5B",
-    "status": "SHIPPED"
-  }
-  ```
-* **Verifications**:
-  1. HTTP Status `200 OK`.
-  2. Shipping address updated to `"New Address 200, Suite 5B"`.
-  3. Status updated to `"SHIPPED"`.
-  4. Verified directly in DB.
+#### 10. Happy Path: Update Shipping Address & Status
+* **Endpoint**: `PUT /api/orders/{id}`
+* **Payload**: `{ "shippingAddress": "New Address 200", "status": "SHIPPED" }`
+* **Assertion**: Returns HTTP 200, updates both fields in memory and persists to database.
 
-#### Test 11: `updateOrder_AddressOnly_Returns200AndPreservesStatus`
-* **Type**: Happy Path (Partial Update)
-* **Method**: `PUT /api/orders/{id}` with `shippingAddress` updated and `status: null`.
-* **Verifications**:
-  1. HTTP Status `200 OK`.
-  2. Address is changed.
-  3. Status remains preserved as `CONFIRMED`.
+#### 11. Happy Path: Partial Update (Address Only)
+* **Endpoint**: `PUT /api/orders/{id}`
+* **Payload**: `{ "shippingAddress": "Updated Address 500", "status": null }`
+* **Assertion**: Returns HTTP 200, updates address, and verifies order status remains untouched as `CONFIRMED`.
 
-#### Test 12: `updateOrder_NonExistentOrder_Returns404`
-* **Type**: Negative Path (Resource Missing)
-* **Method**: `PUT /api/orders/999999`
-* **Verifications**:
-  1. HTTP Status `404 Not Found`.
-  2. JSON body `status: 404`, `error: "Not Found"`.
+#### 12. Negative Path: Non-Existent Order ID
+* **Endpoint**: `PUT /api/orders/999999`
+* **Assertion**: Returns HTTP 404 `{ "error": "Not Found" }`.
 
-#### Test 13: `updateOrder_AlreadyCancelled_Returns400`
-* **Type**: Negative Path (Terminal State Protection)
-* **Setup**: Order is in `CANCELLED` status.
-* **Method**: `PUT /api/orders/{id}`
-* **Verifications**:
-  1. HTTP Status `400 Bad Request`.
-  2. Message indicates `"Cannot update order in CANCELLED status"`.
+#### 13 & 14. Negative Path: Terminal State Protection
+* **Business Rule**: Orders in `CANCELLED` or `SHIPPED` status are immutable.
+* **Assertion**: Attempting to update orders in either terminal state results in HTTP 400 Bad Request with error message:
+  - `"Cannot update order in CANCELLED status"`
+  - `"Cannot update order in SHIPPED status"`
 
-#### Test 14: `updateOrder_AlreadyShipped_Returns400`
-* **Type**: Negative Path (Terminal State Protection)
-* **Setup**: Order is in `SHIPPED` status.
-* **Method**: `PUT /api/orders/{id}`
-* **Verifications**:
-  1. HTTP Status `400 Bad Request`.
-  2. Message indicates `"Cannot update order in SHIPPED status"`.
-
-#### Test 15: `updateOrder_CancelOrder_RestoresProductStock`
-* **Type**: State Transition & Inventory Integrity
-* **Setup**: Product started with 10 units, 3 units ordered → current stock is `7`. Order status is `CONFIRMED`.
-* **Method**: `PUT /api/orders/{id}` with `status: "CANCELLED"`.
-* **Verifications**:
-  1. HTTP Status `200 OK`.
-  2. Order status transitions to `"CANCELLED"`.
-  3. **Automatic stock restoration**: Product inventory reloaded from database proves that stock increased from `7` back to `10` (`7 + 3 = 10`).
+#### 15. State Transition & Inventory Integrity: Order Cancellation Restores Stock
+* **Business Invariant**: When an active order is cancelled, its reserved inventory must be atomically returned to the product.
+* **Test Flow**:
+  1. Product starts with 10 units.
+  2. Order of 3 units placed ➔ Stock drops to 7.
+  3. `PUT /api/orders/{id}` with `{ "status": "CANCELLED" }`.
+  4. Repository re-fetches product: stock is verified back at `10` (`7 + 3 = 10`).
 
 ---
 
-## 🚀 How to Execute the Tests
+## 🛠️ How to Run the Tests
 
 ### 1. Execute All Integration Tests
-In terminal / PowerShell at project root:
 ```powershell
 # Windows
 .\mvnw.cmd test -Dtest=ECommerceIntegrationTest
@@ -232,41 +201,37 @@ In terminal / PowerShell at project root:
 ./mvnw test -Dtest=ECommerceIntegrationTest
 ```
 
-### 2. Execute a Single Scenario Group (Nested Class)
+### 2. Execute by Scenario Group (`@Nested` Class)
 ```powershell
-# Run only Create Product scenario tests
+# Run only Scenario 1: Create Product
 .\mvnw.cmd test -Dtest=ECommerceIntegrationTest$CreateProductTests
 
-# Run only Place Order scenario tests
+# Run only Scenario 2: Place Order
 .\mvnw.cmd test -Dtest=ECommerceIntegrationTest$PlaceOrderTests
 
-# Run only Update Order scenario tests
+# Run only Scenario 3: Update Order
 .\mvnw.cmd test -Dtest=ECommerceIntegrationTest$UpdateOrderTests
 ```
 
-### 3. Execute an Individual Test Method
+### 3. Run a Single Test Method
 ```powershell
 .\mvnw.cmd test -Dtest=ECommerceIntegrationTest$UpdateOrderTests#updateOrder_CancelOrder_RestoresProductStock
 ```
 
-### 4. Execute the Entire Test Suite
-```powershell
-.\mvnw.cmd clean test
-```
-
 ---
 
-## 📈 Test Results & Verification Log
+## 📋 Test Execution Proof (Build Logs)
 
 ```
--------------------------------------------------------
- T E S T S
--------------------------------------------------------
-Running com.ecommerce.ECommerceIntegrationTest
-2026-09-14T14:10:33.151+08:00  INFO 14324 --- [ecommerce-service] [main] com.ecommerce.ECommerceIntegrationTest : Starting ECommerceIntegrationTest using Java 21.0.8
-2026-09-14T14:10:33.152+08:00  INFO 14324 --- [ecommerce-service] [main] com.ecommerce.ECommerceIntegrationTest : The following 1 profile is active: "test"
-...
-[INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.945 s -- in com.ecommerce.ECommerceIntegrationTest
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.ecommerce.ECommerceIntegrationTest$UpdateOrderTests
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.032 s
+[INFO] Running com.ecommerce.ECommerceIntegrationTest$PlaceOrderTests
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.503 s
+[INFO] Running com.ecommerce.ECommerceIntegrationTest$CreateProductTests
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.123 s
 [INFO] 
 [INFO] Results:
 [INFO] 
@@ -275,14 +240,14 @@ Running com.ecommerce.ECommerceIntegrationTest
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD SUCCESS
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time: 11.758 s
+[INFO] Total time:  10.424 s
 ```
 
 ---
 
-## 💡 Best Practices Implemented
+## 🌟 Key Engineering Highlights
 
-1. **Deterministic Isolation**: `deleteAll()` inside `@BeforeEach` ensures no lingering state spills across tests.
-2. **Layered Verification**: Tests don't just inspect the HTTP JSON response; they cross-check the persistent database state via repository queries.
-3. **Domain Invariant Testing**: Inventory math (deduction on order, restoration on cancellation) and business rules (terminal state immutability) are thoroughly tested.
-4. **Hierarchical Organization**: Using JUnit 5 `@Nested` classes groups related tests logically under their respective scenario requirement.
+1. **Deterministic Isolation**: `@BeforeEach` purges data via repository calls, guaranteeing zero cross-test interference.
+2. **Double-Layer Verification**: Each test asserts both the HTTP response body and the persistent database entity state.
+3. **Boundary & Validation Coverage**: Enforces Bean Validation (`@NotBlank`, `@Positive`, `@Min`) and custom business exceptions (`InsufficientStockException`, `ResourceNotFoundException`, `IllegalStateException`).
+4. **Clean Code Structure**: Utilizing JUnit 5 `@Nested` classes and descriptive `@DisplayName` annotations ensures the test output serves as living documentation for developers and QA engineers alike.
