@@ -983,8 +983,98 @@ INFO  o.f.core.internal.command.DbMigrate - Successfully applied 1 migration to 
 [INFO] Finished at: 2026-09-14T16:00:51+08:00
 [INFO] ------------------------------------------------------------------------""")
 
+    # =========================================================================
+    # Section 7: Blockers, Technical Challenges & Solutions
+    # =========================================================================
+    h_blockers = doc.add_heading(level=1)
+    r = h_blockers.add_run("7. Blockers, Technical Challenges & Solutions")
+    r.font.color.rgb = RGBColor(30, 58, 138)
+
+    doc.add_paragraph(
+        "Throughout the end-to-end implementation of Integration Testing (Task 1), Contract Testing (Task 2), "
+        "Test Data Management (Task 3), and Build Automation (Task 4), several intricate technical blockers and architectural "
+        "challenges were diagnosed and resolved. The table below presents the structured post-mortem analysis:"
+    )
+
+    t_bts = doc.add_table(rows=11, cols=3)
+    t_bts.alignment = WD_TABLE_ALIGNMENT.CENTER
+    bts_headers = ["Challenge / Blocker", "Root Cause Analysis", "Resolution Applied"]
+    for i, h in enumerate(bts_headers):
+        cell = t_bts.rows[0].cells[i]
+        set_cell_background(cell, "1E3A8A")
+        p = cell.paragraphs[0]
+        r = p.add_run(h)
+        r.font.bold = True
+        r.font.size = Pt(9.0)
+        r.font.color.rgb = RGBColor(255, 255, 255)
+
+    bts_data = [
+        ("DTO / Compilation Errors in OrderBaseClass",
+         "OrderResponse was implemented as a Java 21 Record expecting 7 parameters (id, productId, quantity, totalAmount, shippingAddress, status, createdAt), but mock instantiation in OrderBaseClass only provided 5 arguments. Additionally, OrderStatus.CREATED was invalid.",
+         "Updated instantiation to pass all 7 Record parameters and used valid OrderStatus.PENDING & SHIPPED enum values with an explicit UTC Instant timestamp."),
+        ("Contract Endpoint 404 Not Found Errors",
+         "Contract Groovy files targeted /orders and /products, while OrderController and ProductController were mapped under the path prefixes /api/orders and /api/v1/items respectively.",
+         "Aligned contract URLs in both shouldCreateOrder.groovy and shouldUpdateOrder.groovy to explicitly target /api/orders and /api/orders/100. Synchronized Product contracts to /api/v1/items and /api/v1/items/1."),
+        ("Duplicate Plugin Declarations in pom.xml",
+         "pom.xml contained two separate <plugin> blocks for spring-cloud-contract-maven-plugin declaring conflicting package base classes, leading to build lifecycle collisions and configuration overwrites.",
+         "Consolidated plugin configuration into a single unified block utilizing packageWithBaseClasses to cleanly map com.ecommerce.order to OrderBaseClass and com.ecommerce.product to ProductBaseTest."),
+        ("Docker Daemon Connection Failure on Windows",
+         "Docker Desktop on Windows communicates via a named pipe (npipe:////./pipe/dockerDesktopLinuxEngine) rather than standard Unix domain socket (/var/run/docker.sock), throwing DockerClientException.",
+         "Configured Testcontainers 1.20.1 automated Windows named pipe discovery via JNA and exported DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine for terminal scripts."),
+        ("Docker Engine 29.x API Version Compatibility (500 Server Error)",
+         "Docker Engine 29.x deprecated and rejected Docker client API versions older than 1.40. Legacy Testcontainers defaulted to API v1.32, resulting in HTTP 500 handshake rejection.",
+         "Upgraded Testcontainers dependencies to 1.20.1 and pinned <api.version>1.44</api.version> in pom.xml, ensuring full API handshake compatibility with Docker Engine 29.x."),
+        ("Dynamic Host Port Collisions in CI/CD Environments",
+         "Hardcoding static PostgreSQL port 5432 causes BindException: Address already in use when local PostgreSQL is active or when concurrent test workers execute on shared CI nodes.",
+         "Employed Testcontainers dynamic ephemeral port mapping (new PostgreSQLContainer<>()) and injected runtime JDBC URL via Spring's @DynamicPropertySource (postgres::getJdbcUrl, e.g. 61533)."),
+        ("Cross-Test Database Pollution & Flaky Test Failures",
+         "Reusing a single container instance across test classes leaves residual database records (e.g., depleted cookie inventory, inserted order rows), causing false negatives depending on test execution order.",
+         "Implemented an automated @BeforeEach hook in AbstractContainerIntegrationTest executing TRUNCATE TABLE orders, products RESTART IDENTITY CASCADE, restoring zero-state baseline in <5ms."),
+        ("Schema Drift & DDL Desynchronization (Hibernate vs. Flyway)",
+         "Configuring Hibernate ddl-auto to create or update creates race conditions with Flyway, producing duplicate indexes or letting tests pass against schemas differing from production DDL.",
+         "Enforced Flyway (V1__init_schema.sql) as the single source of truth for DDL (spring.flyway.enabled=true) and locked Hibernate to strict verification (spring.jpa.hibernate.ddl-auto=validate)."),
+        ("Orphaned Containers & Resource Exhaustion (Zombie Containers)",
+         "Aborting test executions midway (e.g. IDE stop button or Ctrl+C in Maven) bypasses standard JVM shutdown hooks, leaving zombie database containers consuming CPU and memory.",
+         "Integrated Testcontainers Ryuk Resource Reaper (testcontainers/ryuk:0.8.1). Ryuk maintains a TCP heartbeat socket and instantly reaps all associated test containers if the JVM dies abruptly."),
+        ("Currency Decimal Precision & Timezone Inconsistencies",
+         "Using floating-point types (double/float) for Philippine Peso (PHP) calculations introduces binary rounding errors (e.g. 49.980000000000004). Non-UTC timezone offsets break timestamp assertions.",
+         "Enforced java.math.BigDecimal throughout domain entities, mapped to PostgreSQL NUMERIC(10, 2). Standardized all order timestamps to UTC Instant and ISO-8601 formatting.")
+    ]
+
+    for idx, (cblocker, canalysis, cresolution) in enumerate(bts_data):
+        row = t_bts.rows[idx + 1]
+        c0, c1, c2 = row.cells[0], row.cells[1], row.cells[2]
+        c0.width = Inches(1.8)
+        c1.width = Inches(2.3)
+        c2.width = Inches(2.4)
+        bg = "F8FAFC" if idx % 2 == 0 else "FFFFFF"
+        set_cell_background(c0, bg)
+        set_cell_background(c1, bg)
+        set_cell_background(c2, bg)
+        set_cell_margins(c0, 40, 40, 50, 50)
+        set_cell_margins(c1, 40, 40, 50, 50)
+        set_cell_margins(c2, 40, 40, 50, 50)
+
+        p0 = c0.paragraphs[0]
+        r0 = p0.add_run(cblocker)
+        r0.font.bold = True
+        r0.font.size = Pt(8.0)
+        r0.font.color.rgb = RGBColor(30, 58, 138)
+
+        p1 = c1.paragraphs[0]
+        r1 = p1.add_run(canalysis)
+        r1.font.size = Pt(8.0)
+        r1.font.color.rgb = RGBColor(51, 65, 85)
+
+        p2 = c2.paragraphs[0]
+        r2 = p2.add_run(cresolution)
+        r2.font.size = Pt(8.0)
+        r2.font.color.rgb = RGBColor(51, 65, 85)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(8)
+
     # Conclusion
-    doc.add_heading(level=1).add_run("7. Conclusion").font.color.rgb = RGBColor(30, 58, 138)
+    doc.add_heading(level=1).add_run("8. Conclusion").font.color.rgb = RGBColor(30, 58, 138)
     doc.add_paragraph(
         "All requirements stipulated for Task 1 (Integration Testing), Task 2 (Contract Testing), Task 3 (Test Data Management), "
         "and Task 4 (Documentation) have been comprehensively implemented, tested, and validated across 21 test cases. "
