@@ -66,9 +66,9 @@ The integration test suite ([`ECommerceIntegrationTest.java`](src/test/java/com/
 @DisplayName("1. Happy Path: Successfully create product, return 201 and persist in DB")
 void createProduct_ValidPayload_Returns201AndPersistsInDb() throws Exception {
     CreateProductRequest request = new CreateProductRequest(
-            "Noise Cancelling Headphones",
-            "Premium wireless over-ear headphones",
-            new BigDecimal("199.99"),
+            "Artisan Croissant Box",
+            "Box of 4 flaky butter croissants",
+            new BigDecimal("280.00"),
             50
     );
 
@@ -77,8 +77,8 @@ void createProduct_ValidPayload_Returns201AndPersistsInDb() throws Exception {
                     .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id", notNullValue()))
-            .andExpect(jsonPath("$.name", is("Noise Cancelling Headphones")))
-            .andExpect(jsonPath("$.price", is(199.99)))
+            .andExpect(jsonPath("$.name", is("Artisan Croissant Box")))
+            .andExpect(jsonPath("$.price", is(280.00)))
             .andExpect(jsonPath("$.stock", is(50)))
             .andReturn();
 
@@ -87,7 +87,7 @@ void createProduct_ValidPayload_Returns201AndPersistsInDb() throws Exception {
     Long createdId = objectMapper.readTree(responseString).get("id").asLong();
     Product savedProduct = productRepository.findById(createdId).orElse(null);
     assertThat(savedProduct).isNotNull();
-    assertThat(savedProduct.getName()).isEqualTo("Noise Cancelling Headphones");
+    assertThat(savedProduct.getName()).isEqualTo("Artisan Croissant Box");
 }
 ```
 
@@ -96,17 +96,29 @@ void createProduct_ValidPayload_Returns201AndPersistsInDb() throws Exception {
 @Test
 @DisplayName("5. Happy Path: Place order with sufficient stock returns 201 and deducts inventory")
 void placeOrder_ValidProductAndStock_Returns201AndDeductsInventory() throws Exception {
-    Product product = productRepository.save(new Product("Mechanical Keyboard", "RGB switches", new BigDecimal("89.50"), 10));
+    // Use programmatic ProductFactory
+    Product product = productRepository.save(ProductFactory.builder()
+            .withName("Chocolate Chip Cookie Box")
+            .withPrice(new BigDecimal("250.00"))
+            .withStock(10)
+            .build());
 
-    PlaceOrderRequest orderRequest = new PlaceOrderRequest(product.getId(), 3, "123 Tech Lane, Silicon Valley, CA");
+    PlaceOrderRequest orderRequest = new PlaceOrderRequest(
+            product.getId(),
+            3,
+            "Unit 12B, Katipunan Avenue, Quezon City, Metro Manila"
+    );
 
     MvcResult result = mockMvc.perform(post("/api/orders")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(orderRequest)))
             .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id", notNullValue()))
+            .andExpect(jsonPath("$.productId", is(product.getId().intValue())))
             .andExpect(jsonPath("$.quantity", is(3)))
-            .andExpect(jsonPath("$.totalAmount", is(268.50))) // 89.50 * 3
+            .andExpect(jsonPath("$.totalAmount", is(750.00))) // PHP 250.00 * 3
             .andExpect(jsonPath("$.status", is("CONFIRMED")))
+            .andExpect(jsonPath("$.shippingAddress", is("Unit 12B, Katipunan Avenue, Quezon City, Metro Manila")))
             .andReturn();
 
     // Assert Product stock decremented: 10 - 3 = 7
@@ -120,16 +132,20 @@ void placeOrder_ValidProductAndStock_Returns201AndDeductsInventory() throws Exce
 @Test
 @DisplayName("13. Negative Path: Update an order that is already CANCELLED returns 400 Bad Request")
 void updateOrder_AlreadyCancelled_Returns400() throws Exception {
-    Product product = productRepository.save(new Product("USB-C Hub", "Multiport", new BigDecimal("35.00"), 15));
-    Order cancelledOrder = orderRepository.save(new Order(product.getId(), 1, new BigDecimal("35.00"), "789 Dock Rd", OrderStatus.CANCELLED));
+    Product product = productRepository.save(ProductFactory.createValidProduct());
+    Order cancelledOrder = orderRepository.save(OrderFactory.createCancelledOrder(product));
 
-    UpdateOrderRequest updateRequest = new UpdateOrderRequest("Attempted New Address", OrderStatus.CONFIRMED);
+    UpdateOrderRequest updateRequest = new UpdateOrderRequest(
+            "Attempted New Address",
+            OrderStatus.CONFIRMED
+    );
 
     mockMvc.perform(put("/api/orders/" + cancelledOrder.getId())
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(updateRequest)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.status", is(400)))
+            .andExpect(jsonPath("$.error", is("Bad Request")))
             .andExpect(jsonPath("$.message", containsString("Cannot update order in CANCELLED status")));
 }
 ```
